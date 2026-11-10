@@ -1,0 +1,57 @@
+name: Construir app iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: xcode-27
+    steps:
+      - name: Descargar los archivos
+        uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        shell: bash
+        run: brew install xcodegen || true
+
+      - name: Generar el proyecto de Xcode
+        shell: bash
+        run: xcodegen generate
+
+      - name: Compilar la app
+        shell: bash
+        run: |
+          xcodebuild \
+            -project FreeRooms.xcodeproj \
+            -scheme FreeRooms \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            2>&1 | tee build.log
+
+      - name: Crear el archivo .ipa
+        shell: bash
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/FreeRooms.app Payload/
+          zip -qry FreeRooms.ipa Payload
+
+      - name: Guardar el .ipa para descargarlo
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeRooms-ipa
+          path: FreeRooms.ipa
+
+      - name: Guardar el registro de errores
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: registro-de-compilacion
+          path: build.log
+          if-no-files-found: ignore
